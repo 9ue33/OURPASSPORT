@@ -1,0 +1,34 @@
+# Example Cloudflare Tunnel config for the AI PASSPORT relay.
+#
+# Why a tunnel: the firmware only speaks plain HTTP (there is no TLS stack on
+# the device), so you do not want to expose the relay's port on your server's
+# public IP. cloudflared dials out to Cloudflare, and Cloudflare terminates TLS
+# for the hostname in front of it.
+#
+# Setup outline:
+#   1. Install cloudflared on the relay host.
+#   2. cloudflared tunnel login
+#   3. cloudflared tunnel create aipassport-relay      # prints the tunnel UUID
+#   4. Copy this file to /etc/cloudflared/config.yml and replace <TUNNEL-UUID>
+#      with that UUID; the credentials JSON lives at
+#      /root/.cloudflared/<TUNNEL-UUID>.json
+#   5. cloudflared tunnel route dns aipassport-relay relay.example.com
+#   6. cloudflared service install && systemctl enable --now cloudflared
+#   7. Point the devices at http://relay.example.com (scheme must be http://,
+#      see the firmware's COUPLE_DEFAULT_RELAY_URL / the provisioning page).
+#
+# IMPORTANT: turn "Always Use HTTPS" OFF for this hostname in the Cloudflare
+# dashboard. If Cloudflare forces an HTTPS redirect, the device's plain HTTP
+# POSTs get a 301 they cannot follow and every sync fails.
+#
+# With the tunnel in place you can bind the relay to 127.0.0.1 only and keep the
+# server's firewall closed for 8787 entirely:
+#   ExecStart=/usr/bin/env python3 .../relay.py --host 127.0.0.1 --port 8787 ...
+
+tunnel: <TUNNEL-UUID>
+credentials-file: /root/.cloudflared/<TUNNEL-UUID>.json
+
+ingress:
+  - hostname: relay.example.com
+    service: http://127.0.0.1:8787
+  - service: http_status:404

@@ -15,6 +15,52 @@
 - 添加字库前评估 Flash 与内部 RAM 影响；ESP32-C3 无 PSRAM。
 - 不提交许可不允许分发的字库。
 
+### 情侣终端子集字库
+
+情侣心动终端通过两套未压缩的 LVGL 子集字库显示中文，二者由同一份码点清单生成。`main/couple_fonts.h` 负责声明，并把它们映射到小号／正文／标题／数字四个角色；仅当 `main/CMakeLists.txt` 定义 `COUPLE_USE_APP_FONT` 时才参与编译。
+
+| 文件 | 符号 | 字级 | 位图 | 角色 |
+| --- | --- | --- | --- | --- |
+| [`fonts/app_font_16.c`](fonts/app_font_16.c) | `app_font_16` | 16 px，4 bpp | 52,940 B | `COUPLE_FONT_SMALL`、`COUPLE_FONT_BODY` |
+| [`fonts/app_font_20.c`](fonts/app_font_20.c) | `app_font_20` | 20 px，4 bpp | 81,528 B | `COUPLE_FONT_TITLE`、`COUPLE_FONT_NUM` |
+| [`fonts/ui_symbols.txt`](fonts/ui_symbols.txt) | — | — | — | 字符清单：512 个码点，每行一个 `U+XXXX` |
+
+- 源字体：Noto Sans SC，`C:/Windows/Fonts/Noto Sans SC (TrueType).otf`（8,482,020 字节）。直接使用未作修改，许可为 SIL Open Font License 1.1，允许嵌入并再分发生成的子集。
+- 转换工具：`lv_font_conv` 1.5.3，按 [LVGL 中文文本指南](../docs/development/engineering/lvgl-chinese-fonts.md) 的要求使用 `--format lvgl --no-compress --bpp 4`。
+- 字符清单：由 `tools/ui_codepoints.py` 从 `main/` 下全部编译单元的字符串与字符字面量中提取（注释与文档不计入）。其中汉字 413 个、ASCII 89 个、其他 10 个。
+- 分尺寸遵循指南要求，每个字级使用不同符号，因此两个尺寸必须一起重新生成，并与 `main/couple_fonts.h` 中的别名保持一致。
+
+在仓库根目录、且 `lv_font_conv` 已在 `PATH` 中时，重新生成两个尺寸：
+
+```bash
+RANGE=$(awk '{print "0x" substr($0,3)}' assets/fonts/ui_symbols.txt | paste -sd, -)
+for size in 16 20; do
+  lv_font_conv \
+    --font "C:/Windows/Fonts/Noto Sans SC (TrueType).otf" \
+    --range "$RANGE,0x20-0x7E" \
+    --size "$size" --bpp 4 --format lvgl --no-compress \
+    --lv-font-name "app_font_$size" --lv-include lvgl.h \
+    --output "assets/fonts/app_font_$size.c"
+done
+```
+
+每个已提交文件都在自身的 `Opts:` 头注释中记录了生成它的确切命令；上面的清单写法与那里记录的合并 `--range` 写法等价。文案改动后刷新清单：
+
+```bash
+python3 tools/ui_codepoints.py assets/fonts/ui_symbols.txt \
+  "main/*.c" "main/*.h"
+```
+
+重新生成后验证覆盖（负例必须缺席）：
+
+```bash
+python3 tools/check_font_glyphs.py assets/fonts/app_font_16.c \
+  --symbols-file assets/fonts/ui_symbols.txt --range 0x20-0x7E --no-art
+```
+
+- 清单之外的码点会显示为占位方框，固件不会就此告警。网络下发的文本（例如对方昵称）不在本清单覆盖范围内。
+- 不要 `#include` 生成的字库 `.c`；应把它登记为组件源文件，并用 `LV_FONT_DECLARE` 声明符号。
+
 ## 图片（images）
 
 可复用的源图与生成的显示资产放在 `images/`。

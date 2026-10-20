@@ -22,23 +22,36 @@ CONFIG_LV_COLOR_DEPTH_16=y
 # 20 ms display refresh period targets up to 50 FPS when rendering and SPI
 # transfer complete within the same budget.
 CONFIG_LV_DEF_REFR_PERIOD=20
+# 中文文案依赖 UTF-8 解码,显式固定,不依赖 LV_CONF_MINIMAL 的默认推导。
+CONFIG_LV_TXT_ENC_UTF8=y
 CONFIG_LV_FONT_MONTSERRAT_14=y
+CONFIG_LV_FONT_MONTSERRAT_16=y
 CONFIG_LV_FONT_MONTSERRAT_20=y
+CONFIG_LV_FONT_MONTSERRAT_24=y
 # LVGL 内置 malloc 池大小(KB)。它是独立静态区、不与系统堆共享,配大了会白白占用 RAM。
-# 本 demo UI 简单,24KB 足够;若自建复杂界面出现绘制卡死/看门狗,调大此值。
-CONFIG_LV_MEM_SIZE_KILOBYTES=24
+# 应用 UI 页面是「首页常驻 + 其余页面离开即销毁、下次进入按需重建」:稳态下同时驻留的
+# 只有首页与当前页(约 19 KB),12 页全建则需要 55 KB 以上,所以不能改成常驻复用。
+# 池耗尽会让 LVGL 断言在处理函数里死循环,表现为绘制卡死/看门狗复位;可诊断性见文件末尾
+# 的 LV_LOG 设置。这里保持 48KB:池子是静态 .bss(占总 .bss 62%),加大直接压 Wi-Fi 常驻堆,
+# 而 C3 无 PSRAM。
+CONFIG_LV_MEM_SIZE_KILOBYTES=48
 
 # --- 系统 ---
 CONFIG_FREERTOS_HZ=1000
 
-# --- Bluetooth LE / NimBLE ---
-# ESP32-C3 仅支持 BLE；示例只启用单连接 peripheral 所需的最小 host 配置。
-CONFIG_BT_ENABLED=y
-CONFIG_BT_NIMBLE_ENABLED=y
-CONFIG_BT_NIMBLE_ROLE_CENTRAL=n
-CONFIG_BT_NIMBLE_ROLE_PERIPHERAL=y
-CONFIG_BT_NIMBLE_ROLE_BROADCASTER=y
-CONFIG_BT_NIMBLE_ROLE_OBSERVER=n
-CONFIG_BT_NIMBLE_MAX_CONNECTIONS=1
-CONFIG_BT_NIMBLE_HOST_BASED_PRIVACY=n
-CONFIG_BT_NIMBLE_NVS_PERSIST=n
+# --- Bluetooth LE / NimBLE:关闭 ---
+# 应用只使用 Wi-Fi(常驻 STA + 长轮询 HTTP)与自建 SoftAP 配网页,不需要 BLE。
+# Wi-Fi 常驻后系统堆只剩约 42 KB,NimBLE host 需要约 58 KB,两者同开会直接 OOM。
+# 因此这里显式关闭蓝牙,官方 BLE demo 在本构建配置下不可用,这是有意的取舍。
+CONFIG_BT_ENABLED=n
+
+# --- 可诊断性(永久设置) ---
+# 让 LVGL 在断言挂死之前把断言表达式打到控制台:LVGL 的 LV_ASSERT 宏在调用
+# LV_ASSERT_HANDLER(默认 while(1))之前会先执行 LV_LOG_ERROR("Asserted at expression: %s", #expr)
+# (见 managed_components/lvgl__lvgl/src/misc/lv_assert.h:37-43)。所以开了这三项之后,
+# 池耗尽这类致命错误会先把断言表达式打出来再挂住,而不是一行日志都不留地静默死锁。
+CONFIG_LV_USE_LOG=y
+CONFIG_LV_LOG_LEVEL_ERROR=y
+CONFIG_LV_LOG_PRINTF=y
+# bring-up 期保留项:串口 monitor 提示过,没有帧指针就拿不到完整回溯。发布前可评估关闭。
+CONFIG_ESP_SYSTEM_USE_FRAME_POINTER=y

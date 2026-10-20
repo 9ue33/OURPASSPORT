@@ -64,6 +64,31 @@ run_static_checks() {
             -o "${test_dir}/test_demo_${demo}_runtime"
         "${test_dir}/test_demo_${demo}_runtime"
     done
+    "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -Imain \
+        tests/test_couple_sha256.c main/couple_sha256.c \
+        -o "${test_dir}/test_couple_sha256"
+    "${test_dir}/test_couple_sha256"
+    "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -Imain \
+        tests/test_couple_proto.c main/couple_proto.c main/couple_sha256.c \
+        -o "${test_dir}/test_couple_proto"
+    "${test_dir}/test_couple_proto"
+    "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -Imain \
+        tests/test_couple_state.c main/couple_state.c \
+        -o "${test_dir}/test_couple_state"
+    "${test_dir}/test_couple_state"
+    "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -Imain \
+        tests/test_couple_store_blob.c main/couple_store_blob.c main/couple_state.c \
+        -o "${test_dir}/test_couple_store_blob"
+    "${test_dir}/test_couple_store_blob"
+    "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -Imain \
+        tests/test_couple_tone.c main/couple_tone.c \
+        -o "${test_dir}/test_couple_tone"
+    "${test_dir}/test_couple_tone"
+    for font_size in 16 20; do
+        PYTHONDONTWRITEBYTECODE=1 python3 tools/check_font_glyphs.py \
+            "assets/fonts/app_font_${font_size}.c" \
+            --symbols-file assets/fonts/ui_symbols.txt --range 0x20-0x7E --no-art
+    done
     PYTHONDONTWRITEBYTECODE=1 python3 tests/test_deep_sleep_contract.py
     PYTHONDONTWRITEBYTECODE=1 python3 tests/test_key_wake_contract.py
     PYTHONDONTWRITEBYTECODE=1 python3 tests/test_check_repo.py

@@ -1,0 +1,31 @@
+# systemd unit for the AI PASSPORT relay.
+#
+# Install:
+#   sudo mkdir -p /opt/aipassport-relay
+#   sudo cp relay.py /opt/aipassport-relay/
+#   sudo cp deploy/aipassport-relay.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now aipassport-relay
+#   journalctl -u aipassport-relay -f
+#
+# Adjust WorkingDirectory/ExecStart if you install somewhere other than
+# /opt/aipassport-relay. The relay keeps its whole state — pairings, pair keys,
+# pending codes — in relay-state.json next to relay.py, so back that file up and
+# keep it readable only by the account running the service.
+
+[Unit]
+Description=AI PASSPORT relay (Heartlink couple terminal)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/aipassport-relay
+ExecStart=/usr/bin/env python3 /opt/aipassport-relay/relay.py --host 0.0.0.0 --port 8787 --data-file /opt/aipassport-relay/relay-state.json
+Restart=always
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
